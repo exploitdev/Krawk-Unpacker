@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using dnlib.DotNet;
 using dnlib.DotNet.Writer;
@@ -39,7 +39,8 @@ namespace Krawk_Unpacker
    Language: C#
    Framework: 4.5.2
    Created Date: 10/07/2018
-   Create By Krawk
+   Bugs Fixed: 5/01/2019
+   Created By Krawk
 
   { Obs: Not Supported x86 Mixed Mode }
 ==============================================================================
@@ -47,24 +48,24 @@ namespace Krawk_Unpacker
             string diretorio = args[0];
             try
             {
-                    Program.module = ModuleDefMD.Load(diretorio);
-                    Program.asm = Assembly.LoadFrom(diretorio);
-                    Program.Asmpath = diretorio;     
-			}
-			catch (Exception)
-			{
+                Program.module = ModuleDefMD.Load(diretorio);
+                Program.asm = Assembly.LoadFrom(diretorio);
+                Program.Asmpath = diretorio;
+            }
+            catch (Exception)
+            {
                 Console.WriteLine("Not .NET Assembly...");
-			}
-			string text = Path.GetDirectoryName(diretorio);
-			bool flag = !text.EndsWith("\\");
-			if (flag)
-			{
-				text += "\\";
-			}
+            }
+            string text = Path.GetDirectoryName(diretorio);
+            bool flag = !text.EndsWith("\\");
+            if (flag)
+            {
+                text += "\\";
+            }
             Console.ForegroundColor = ConsoleColor.White;
-            antitamper();
-            Staticpacker();
-            packer();
+            try { antitamper(); } catch { Console.WriteLine("[!] Anti-Tamper Falhou em remover"); }
+            try { Staticpacker(); } catch { Console.WriteLine("[!] Packer Falhou em remover"); }
+            try { packer(); } catch { Console.WriteLine("[!] Packer Falhou em remover"); }
             try
             {
                 Console.ForegroundColor = ConsoleColor.White;
@@ -93,7 +94,7 @@ namespace Krawk_Unpacker
                 Console.WriteLine("[!] Sucesso ao Limpar Cases De Control-Flow");
 
             }
-             catch (Exception)
+            catch (Exception)
             {
                 Console.WriteLine("[!] Erro ao Limpar Cases De Control-Flow");
             }
@@ -171,81 +172,85 @@ namespace Krawk_Unpacker
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.WriteLine("[!] Removendo Attributes");
 
-                Console.WriteLine("[!] Attributes Removidas: " + AttributeRemover.start(module));
+                Console.WriteLine("[!] Attributes Removidas: " + AttributeRemover.startt(module,asm));
             }
             catch { }
+      
             string filename = string.Format("{0}{1}_Unpacked{2}", text, Path.GetFileNameWithoutExtension(diretorio), Path.GetExtension(diretorio));
             ModuleWriterOptions writerOptions = new ModuleWriterOptions(module);
             writerOptions.MetaDataOptions.Flags |= MetaDataFlags.PreserveAll;
             writerOptions.Logger = DummyLogger.NoThrowInstance;
-            Program.module.Write(filename, writerOptions);
-			Console.WriteLine("");
-			Console.WriteLine("Salvo Com Sucesso !");
-			Console.ReadLine();
-		}
+            NativeModuleWriterOptions NativewriterOptions = new NativeModuleWriterOptions(module);
+            NativewriterOptions.MetaDataOptions.Flags |= MetaDataFlags.PreserveAll;
+            NativewriterOptions.Logger = DummyLogger.NoThrowInstance;
+            if (module.IsILOnly) { module.Write(filename, writerOptions); } else { module.NativeWrite(filename, NativewriterOptions); }
+            Console.WriteLine("");
+            Console.WriteLine("Salvo Com Sucesso !");
+            Console.ReadLine();
+        }
 
 
         static void packer()
         {
-                if (Protections.Packer.IsPacked(module))
-                {
+            if (Protections.Packer.IsPacked(module))
+            {
                 Console.WriteLine("[!] Compressor Dynamico Detectado");
-                    try
-                    {
+                try
+                {
                     Protections.Packer.findLocal();
-                        Console.WriteLine("[!] Compressor Removido");
-                    }
-                    catch
-                    {
-                    Console.WriteLine("[!] Compressor Erro ao Remover");
-                    }
-
-                    antitamper();
-                    module.EntryPoint = module.ResolveToken(Protections.StaticPacker.epToken) as MethodDef;
-
+                    Console.WriteLine("[!] Compressor Removido");
                 }
+                catch
+                {
+                    Console.WriteLine("[!] Compressor Erro ao Remover");
+                }
+
+                antitamper();
+                module.EntryPoint = module.ResolveToken(Protections.StaticPacker.epToken) as MethodDef;
+
+            }
         }
         static void Staticpacker()
         {
-                if (Protections.Packer.IsPacked(module))
-                {
+            if (Protections.Packer.IsPacked(module))
+            {
                 Console.WriteLine("[!] Compressor Statico Detectado");
-                    try
-                    {
+                try
+                {
                     Protections.StaticPacker.Run(module);
-                        Console.WriteLine("[!] Compressor Removido");
-                    }
-                    catch
-                    {
-                    Console.WriteLine("[!] Compressor Erro ao Remover");
-                    }
-                antitamper();
-                    module.EntryPoint = module.ResolveToken(Protections.StaticPacker.epToken) as MethodDef;
+                    Console.WriteLine("[!] Compressor Removido");
                 }
+                catch
+                {
+                    Console.WriteLine("[!] Compressor Erro ao Remover");
+                }
+                antitamper();
+                module.EntryPoint = module.ResolveToken(Protections.StaticPacker.epToken) as MethodDef;
+            }
         }
         static void antitamper()
         {
-                if (Protections.AntiTamper.IsTampered(module) == true)
+            if (Protections.AntiTamper.IsTampered(module) == true)
+            {
+                Console.WriteLine("[!] Anti-Tamper Detectado");
+
+                byte[] rawbytes = null;
+
+                var htdgfd = (module).MetaData.PEImage.CreateFullStream();
+
+                rawbytes = htdgfd.ReadBytes((int)htdgfd.Length);
+                try
                 {
-                    Console.WriteLine("[!] Anti-Tamper Detectado");
-
-                    byte[] rawbytes = null;
-
-                    var htdgfd = (module).MetaData.PEImage.CreateFullStream();
-
-                    rawbytes = htdgfd.ReadBytes((int)htdgfd.Length);
-                    try
-                    {
-                        module = Protections.AntiTamper.UnAntiTamper(module, rawbytes);
-                        Console.WriteLine("[!] Anti-Tamper Removido Com Sucesso");
-                    }
-                    catch
-                    {
-                        Console.WriteLine("[!] Anti-Tamper Falhou em remover");
-                    }
-
+                    module = Protections.AntiTamper.UnAntiTamper(module, rawbytes);
+                    Console.WriteLine("[!] Anti-Tamper Removido Com Sucesso");
                 }
-          
+                catch
+                {
+                    Console.WriteLine("[!] Anti-Tamper Falhou em remover");
+                }
+
+            }
+
         }
 
     }
