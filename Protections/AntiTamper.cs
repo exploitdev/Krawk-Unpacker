@@ -1,4 +1,4 @@
-﻿using dnlib.DotNet;
+using dnlib.DotNet;
 using dnlib.DotNet.Emit;
 using dnlib.PE;
 using System;
@@ -46,21 +46,42 @@ namespace Krawk_Unpacker.Protections
         }
         private static void DecryptMethods(BinaryReader reader, ImageSectionHeader confSec, Stream stream)
         {
-            int num = (int)(confSec.SizeOfRawData >> 2);
-            int pointerToRawData = (int)confSec.PointerToRawData;
-            stream.Position = pointerToRawData;
-            uint[] numArray = new uint[num];
-            for (uint i = 0; i < num; i++)
+            try
             {
-                uint num4 = reader.ReadUInt32();
-                numArray[i] = num4 ^ arrayKeys[(int)((IntPtr)(i & 15))];
-                arrayKeys[(int)((IntPtr)(i & 15))] = num4 + 0x3dbb2819;
+                int num = (int)(confSec.SizeOfRawData >> 2);
+                int pointerToRawData = (int)confSec.PointerToRawData;
+                stream.Position = pointerToRawData;
+                uint[] numArray = new uint[num];
+                for (uint i = 0; i < num; i++)
+                {
+                    uint num4 = reader.ReadUInt32();
+                    numArray[i] = num4 ^ arrayKeys[(int)((IntPtr)(i & 15))];
+                    arrayKeys[(int)((IntPtr)(i & 15))] = num4 + 0x3dbb2819;
+                }
+                byteResult = new byte[num << 2];
+                byteResult = Enumerable.SelectMany<uint, byte>(numArray, new System.Func<uint, IEnumerable<byte>>(BitConverter.GetBytes)).ToArray<byte>();
+                byte[] byteArray = ConvertUInt32ArrayToByteArray(numArray);
+                stream.Position = pointerToRawData;
+                stream.Write(byteResult, 0, byteResult.Length);
             }
-            byteResult = new byte[num << 2];
-            byteResult = Enumerable.SelectMany<uint, byte>(numArray, new System.Func<uint, IEnumerable<byte>>(BitConverter.GetBytes)).ToArray<byte>();
-            byte[] byteArray = ConvertUInt32ArrayToByteArray(numArray);
-            stream.Position = pointerToRawData;
-            stream.Write(byteResult, 0, byteResult.Length);
+            catch
+            {
+                int num = (int)(confSec.SizeOfRawData >> 2);
+                int pointerToRawData = (int)confSec.PointerToRawData;
+                stream.Position = pointerToRawData;
+                uint[] numArray = new uint[num];
+                for (uint i = 0; i < num; i++)
+                {
+                    uint num4 = reader.ReadUInt32();
+                    numArray[i] = num4 ^ arrayKeys[(int)((IntPtr)(i & 15))];
+                    arrayKeys[(int)((IntPtr)(i & 15))] = num4 + 0x3dbb2891;
+                }
+                byteResult = new byte[num << 2];
+                byteResult = Enumerable.SelectMany<uint, byte>(numArray, new System.Func<uint, IEnumerable<byte>>(BitConverter.GetBytes)).ToArray<byte>();
+                byte[] byteArray = ConvertUInt32ArrayToByteArray(numArray);
+                stream.Position = pointerToRawData;
+                stream.Write(byteResult, 0, byteResult.Length);
+            }
         }
         public static bool? IsTampered(ModuleDefMD module)
         {
